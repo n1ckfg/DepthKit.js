@@ -1,10 +1,14 @@
 # DepthKit.js
+[![Build Status](https://travis-ci.org/juniorxsound/DepthKit.js.svg?branch=master)](https://travis-ci.org/juniorxsound/DepthKit.js)
+
 A plugin for visualising [DepthKit](http://www.depthkit.tv/) volumteric captures using [Three.js](https://github.com/mrdoob/three.js) in WebGL. The plugin requires Three.js and a DepthKit *combined-per-pixel* video export from Visualise. 
 The plugin was developed for [Tzina: A Symphony of Longing](https://tzina.space). The project's code is [available here](https://github.com/Avnerus/tzina).
 
 ![DepthKit.js screencapture](https://github.com/juniorxsound/DepthKit.js/blob/master/assets/gh/wire.gif)
 
 Include ```depthkit.js``` or ```depthkit.min.js``` after loading ```three.js``` in your project.
+
+Alternatively, if you use Node.js you can install the package with npm using ```npm install depthkit``` [npm package](https://www.npmjs.com/package/depthkit)
 
 ### Creating a character
 ```
