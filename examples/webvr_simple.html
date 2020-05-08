@@ -33,7 +33,7 @@
 <body>
 
     <!--Three.js-->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/87/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/98/three.min.js"></script>
     <!-- Three WebVR manager -->
     <script src="lib/WebVR.js"></script>
     <!-- WebVR Polyfill -->
@@ -85,7 +85,7 @@
 
             // Setup camera and dolly to move the camera
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, .1, 500);
-            
+
             // Use a group or an empty Object3D class to control the camera position/rotation
             dolly = new THREE.Group();
             dolly.add(camera);
@@ -106,9 +106,7 @@
 
             //Position and rotation adjustments
             character.scale.set(0.001, 0.001, 0.001);
-            character.position.y = 1.1;
-            character.rotateZ(Math.PI / 2);
-            character.rotateX(Math.PI);
+            character.position.set(-0.75, 1.1, 1.85);
 
             //Make it loop once activated
             character.depthkit.setLoop(true);

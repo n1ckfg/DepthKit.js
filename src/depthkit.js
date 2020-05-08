@@ -23,20 +23,27 @@ const VERTS_TALL = 256;
 
 export default class DepthKit {
 
-    constructor(_type = 'mesh', _props, _movie, _poster) {
+    constructor(_type = 'mesh', _props, _movie) {
 
         //Load the shaders
         let rgbdFrag = glsl.file('./shaders/rgbd.frag');
         let rgbdVert = glsl.file('./shaders/rgbd.vert');
 
-
-        //Video element
+        //Crate video element
         this.video = document.createElement('video');
+      
+        //Set the crossOrigin and props
+        this.video.id = 'depthkit-video';
         this.video.crossOrigin = 'anonymous';
         this.video.setAttribute('crossorigin', 'anonymous');
+        this.video.setAttribute('webkit-playsinline', 'webkit-playsinline');
+        this.video.setAttribute('playsinline', 'playsinline');
         this.video.src = _movie;
+
+        //Don't autostart don't loop
         this.video.autoplay = false;
         this.video.loop = false;
+        this.video.load();
 
         //Create a video texture to be passed to the shader
         this.videoTexture = new THREE.VideoTexture(this.video);
@@ -75,13 +82,23 @@ export default class DepthKit {
                     type: "f",
                     value: 0.0
                 },
-                "uvdy": {
-                    type: "f",
-                    value: 0.5
+                "meshDensity": {
+                    value: new THREE.Vector2(VERTS_WIDE, VERTS_TALL)
                 },
-                "uvdx": {
-                    type: "f",
-                    value: 0.0
+                "focalLength": {
+                    value: new THREE.Vector2(1,1)
+                },
+                "principalPoint": {
+                    value: new THREE.Vector2(1,1)
+                },
+                "imageDimensions": {
+                    value: new THREE.Vector2(512,828)
+                },
+                "extrinsics": {
+                    value: new THREE.Matrix4()
+                },
+                "crop": {
+                    value: new THREE.Vector4(0,0,1,1)
                 },
                 "width": {
                     type: "f",
@@ -107,7 +124,6 @@ export default class DepthKit {
             vertexShader: rgbdVert,
             fragmentShader: rgbdFrag,
             transparent: true
-
         });
 
         //Make the shader material double sided
@@ -130,7 +146,7 @@ export default class DepthKit {
                 break;
         }
 
-        //Make sure to read the config file as json (i.e JSON.parse)        
+        //Make sure to read the config file as json (i.e JSON.parse)
         this.jsonLoader = new THREE.FileLoader(this.manager);
         this.jsonLoader.setResponseType('json');
         this.jsonLoader.load(_props,
@@ -144,25 +160,45 @@ export default class DepthKit {
                 this.material.uniforms.height.value = this.props.textureHeight;
                 this.material.uniforms.mindepth.value = this.props.nearClip;
                 this.material.uniforms.maxdepth.value = this.props.farClip;
+                this.material.uniforms.focalLength.value = this.props.depthFocalLength;
+                this.material.uniforms.principalPoint.value = this.props.depthPrincipalPoint;
+                this.material.uniforms.imageDimensions.value = this.props.depthImageSize;
+                this.material.uniforms.crop.value = this.props.crop;
+
+                let ex = this.props.extrinsics;
+                this.material.uniforms.extrinsics.value.set(
+                    ex["e00"], ex["e10"], ex["e20"], ex["e30"],
+                    ex["e01"], ex["e11"], ex["e21"], ex["e31"],
+                    ex["e02"], ex["e12"], ex["e22"], ex["e32"],
+                    ex["e03"], ex["e13"], ex["e23"], ex["e33"],
+                );
+
+                //Create the collider
+                let boxGeo = new THREE.BoxGeometry(this.props.boundsSize.x, this.props.boundsSize.y, this.props.boundsSize.z);
+                let boxMat = new THREE.MeshBasicMaterial(
+                    {
+                        color: 0xffff00,
+                        wireframe: true
+                    }
+                );
+
+                this.collider = new THREE.Mesh(boxGeo, boxMat);
+
+
+                this.collider.visible = false;
+                this.mesh.add(this.collider);
+
+                //Temporary collider positioning fix - // TODO: fix that with this.props.boundsCenter
+                THREE.SceneUtils.detach(this.collider, this.mesh, this.mesh.parent);
+                this.collider.position.set(0,1,0);
             }
         );
+
+        //Make sure we don't hide the character - this helps the objects in webVR
+        this.mesh.frustumCulled = false;
 
         //Apend the object to the Three Object3D that way it's accsesable from the instance
         this.mesh.depthkit = this;
-
-        //Create the collider
-        let sphereGeo = new THREE.SphereGeometry(300, 32, 32);
-        let sphereMat = new THREE.MeshBasicMaterial(
-            { 
-                color: 0xffff00,
-                wireframe: true
-            }
-        );
-        this.colider = new THREE.Mesh(sphereGeo, sphereMat);
-        this.colider.scale.set(5, 2.5, 2.5);
-        this.colider.visible = false;
-        this.mesh.add(this.colider);
-
         this.mesh.name = 'depthkit';
 
         //Return the object3D so it could be added to the scene
@@ -175,8 +211,7 @@ export default class DepthKit {
 
         for (let y = 0; y < VERTS_TALL; y++) {
             for (let x = 0; x < VERTS_WIDE; x++) {
-                DepthKit.geo.vertices.push(
-                    new THREE.Vector3((-640 + x * 5), (480 - y * 5), 0));
+                DepthKit.geo.vertices.push(new THREE.Vector3(x, y, 0));
             }
         }
         for (let y = 0; y < VERTS_TALL - 1; y++) {
@@ -212,6 +247,14 @@ export default class DepthKit {
         this.material.uniforms.opacity.value = opacity;
     }
 
+    setLineWidth(width){
+      if (this.material.wireframe){
+        this.material.wireframeLinewidth = width;
+      } else {
+        console.warn('Can not set the line width because the current character is not set to render wireframe');
+      }
+    }
+
     /*
     * Video Player methods
     */
@@ -244,8 +287,23 @@ export default class DepthKit {
         this.material.uniforms.time.value = time;
     }
 
-    //Clean everything up
+    toggleColliderVisiblity(){
+      this.mesh.collider.visible = !this.mesh.collider.visible;
+    }
+
     dispose() {
-        
+      //Remove the mesh from the scene
+      try {
+        this.mesh.parent.remove(this.mesh);
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        this.mesh.traverse(child=>{
+          if(child.geometry !== undefined){
+            child.geometry.dispose();
+            child.material.dispose();
+          }
+        });
+      }
     }
 }
